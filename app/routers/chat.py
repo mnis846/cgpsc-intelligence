@@ -15,11 +15,17 @@ def get_rag_engine():
     return _rag_engine
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     query: str
     persona: str = "mentor"
     k: int = 6
-    model: str = "llama3.1:8b"
+    model: str = "llama3.2:3b"
+    history: list[ChatMessage] = []
 
 
 @router.post("/chat")
@@ -29,10 +35,6 @@ def chat_endpoint(req: ChatRequest, rag: RAGEngine = Depends(get_rag_engine)):
         persona=req.persona,
         k=req.k,
         model=req.model,
+        history=[msg.model_dump() for msg in req.history],
     )
     return result
-
-
-@router.get("/chat/history")
-def get_chat_history():
-    return {"history": []}  # Placeholder for future session management

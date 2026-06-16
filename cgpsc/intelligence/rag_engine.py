@@ -46,14 +46,12 @@ class RAGEngine:
         for q in questions:
             text = f"{q.get('question', '')} {' '.join(q.get('options', {}).values())}"
 
-            # Extract classification (supports CGPSC Reader format)
             classification = q.get("classification", {})
             primary = classification.get("primary", {}) if isinstance(classification, dict) else {}
 
             subject = q.get("subject") or primary.get("subject") or "General"
             topic = q.get("topic") or primary.get("topic") or "General"
 
-            # Extract difficulty as simple string (ChromaDB requirement)
             difficulty_raw = q.get("difficulty")
             if isinstance(difficulty_raw, dict):
                 difficulty = difficulty_raw.get("label", "medium")
@@ -99,7 +97,7 @@ class RAGEngine:
             subject = meta.get("subject", "General")
             relevance = round(1 - dist, 3) if dist else 0.8
 
-            context_parts.append(f"[{i+1}] ({year} - {subject}) {doc[:400]}...")
+            context_parts.append(f"[{i+1}] ({year} - {subject}) {doc[:450]}...")
 
             sources.append(
                 {
@@ -107,7 +105,7 @@ class RAGEngine:
                     "year": year,
                     "subject": subject,
                     "relevance": relevance,
-                    "snippet": doc[:200] + "..." if len(doc) > 200 else doc,
+                    "snippet": doc[:220] + "..." if len(doc) > 220 else doc,
                 }
             )
 
@@ -121,37 +119,48 @@ class RAGEngine:
         k: int = 6,
         filters: dict | None = None,
         history: list[dict] | None = None,
-        model: str = "llama3.1:8b",
+        model: str = "llama3.2:3b",
     ) -> dict[str, Any]:
-        """Main chat method with RAG + persona."""
+        """Main chat method with RAG + persona + conversation history."""
         active_persona = get_persona(persona)
         ensure_model_exists(model)
 
         context, sources = self.retrieve_context(query, k=k, filters=filters)
 
-        # Build conversation history
-        history_text = ""
-        if history:
-            for msg in history[-4:]:  # last 4 messages
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
-                history_text += f"{role.capitalize()}: {content}\n"
+        # Build conversation history for the LLM
+        messages = []
 
+        # Add system prompt with context
         system_prompt = active_persona.build_system_prompt(
-            context=context, query=query, history=history_text
+            context=context, query=query, history=""
         )
+        messages.append({"role": "system", "content": system_prompt})
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": query},
-        ]
+        # Add previous conversation history (last 6 messages max)
+        if history:
+            for msg in history[-6:]:
+                messages.append({
+                    "role": msg.get("role", "user"),
+                    "content": msg.get("content", "")
+                })
+
+        # Add current user question
+        messages.append({"role": "user", "content": query})
 
         try:
-            resp = ollama_chat(model=model, messages=messages, temperature=0.6, num_predict=700)
+            resp = ollama_chat(
+                model=model,
+                messages=messages,
+                temperature=0.65,
+                num_predict=800,
+            )
             answer = resp.json()["message"]["content"]
         except Exception as e:
             logger.error(f"Ollama chat failed: {e}")
-            answer = f"Sorry, I encountered an error: {str(e)}"
+            answer = (
+                f"Sorry, I encountered an error while generating the response. "
+                f"Please try again or use a lighter model like llama3.2:3b."
+            )
 
         return {
             "answer": answer.strip(),
