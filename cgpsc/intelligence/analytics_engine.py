@@ -43,10 +43,21 @@ class AnalyticsEngine:
         topic_by_year: dict[str, dict[int, int]] = defaultdict(lambda: defaultdict(int))
 
         for q in self.questions:
-            subject = q.get("subject") or q.get("classification", {}).get("primary", {}).get("subject", "Unknown")
-            topic = q.get("topic") or "General"
+            # Extract subject and topic (supports CGPSC Reader format)
+            classification = q.get("classification", {})
+            primary = classification.get("primary", {}) if isinstance(classification, dict) else {}
+
+            subject = q.get("subject") or primary.get("subject") or "Unknown"
+            topic = q.get("topic") or primary.get("topic") or "General"
+
             year = int(q.get("year", 0)) or 0
-            difficulty = q.get("difficulty") or "medium"
+
+            # Safely extract difficulty label (can be str or dict)
+            difficulty_raw = q.get("difficulty")
+            if isinstance(difficulty_raw, dict):
+                difficulty = difficulty_raw.get("label", "medium")
+            else:
+                difficulty = difficulty_raw or "medium"
 
             subject_freq[subject] += 1
             topic_freq[topic] += 1
