@@ -1,0 +1,43 @@
+{
+  "schema_version": "analyzer-record-v1",
+  "exam": "CGPSC Prelims",
+  "year": 2024,
+  "questions": [
+    {
+      "question_no": 5,
+      "question": "What is the scientific name of Leopard ?",
+      "options": {
+        "A": "Panthera leo",
+        "B": "Panthera pardus",
+        "C": "Panthera tigris",
+        "D": "Panthera uncia"
+      },
+      "classification": {
+        "primary": {
+          "subject": "Environment and Ecology",
+          "topic": "Biodiversity"
+        }
+      },
+      "difficulty": {"label": "easy"},
+      "year": 2024
+    },
+    {
+      "question_no": 13,
+      "question": "Which of the following is not a tribe of middle Indian region ?",
+      "options": {
+        "A": "Baigas",
+        "B": "Kadars",
+        "C": "Muria",
+        "D": "Kharia"
+      },
+      "classification": {
+        "primary": {
+          "subject": "Chhattisgarh Special",
+          "topic": "Tribes of Chhattisgarh"
+        }
+      },
+      "difficulty": {"label": "easy"},
+      "year": 2024
+    }
+  ]
+}
