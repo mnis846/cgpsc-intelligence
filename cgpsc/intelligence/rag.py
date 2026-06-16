@@ -1,7 +1,8 @@
 import logging
 import os
 
-from cgpsc.intelligence.ollama_client import ensure_model_exists, ollama_post, OllamaModelNotFoundError
+from cgpsc.intelligence.ollama_client import ensure_model_exists, ollama_post
+
 from cgpsc.intelligence.personas import get_persona
 
 logger = logging.getLogger("cgpsc.rag")
@@ -23,10 +24,12 @@ class CGPSCRAG:
     ) -> dict:
         active_persona = get_persona(persona)
 
-        # For now we use simple context. In future this will use ChromaDB
+        # Simple context for now (will be replaced with real retrieval later)
         context = "Previous Year Questions and notes related to CGPSC."
 
-        ensure_model_exists("llama3.1:8b")  # Change if you use different model
+        # Use a lighter model to avoid memory issues
+        model_name = "llama3.2:3b"
+        ensure_model_exists(model_name)
 
         system_prompt = active_persona.build_system_prompt(context=context, query=query)
 
@@ -34,20 +37,27 @@ class CGPSCRAG:
             resp = ollama_post(
                 "/api/chat",
                 payload={
-                    "model": "llama3.1:8b",
+                    "model": model_name,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": query},
                     ],
                     "stream": False,
-                    "options": {"temperature": 0.6, "num_predict": 500},
+                    "options": {
+                        "temperature": 0.6,
+                        "num_predict": 300,
+                        "num_ctx": 2048,   # Reduced context to save memory
+                    },
                 },
                 caller="rag.chat",
             )
             answer = resp.json()["message"]["content"]
         except Exception as e:
             logger.error(f"Ollama call failed: {e}")
-            answer = f"Error calling Ollama: {str(e)}"
+            answer = (
+                f"Error calling Ollama: {str(e)}. "
+                "Try using a lighter model like llama3.2:3b or reduce context size."
+            )
 
         return {
             "answer": answer.strip(),
