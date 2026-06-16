@@ -1,65 +1,115 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-from pathlib import Path
+from collections import defaultdict
 from typing import Any
 
-from cgpsc.shared.paths import PATHS
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("cgpsc.analytics")
 
 
 class AnalyticsEngine:
-    def __init__(self, repository=None):
-        self.repository = repository
+    """
+    Advanced Analytics Engine for CGPSC PYQs.
+
+    Computes:
+    - Topic frequency & importance
+    - Year-over-year trends
+    - Priority rankings (what matters most)
+    - Subject-wise breakdowns
+    """
+
+    def __init__(self, questions: list[dict[str, Any]] | None = None):
+        self.questions = questions or []
+        self._snapshot: dict[str, Any] | None = None
+
+    def set_questions(self, questions: list[dict[str, Any]]):
+        self.questions = questions
         self._snapshot = None
-        self._last_fingerprint = None
-
-    @staticmethod
-    def catalog_fingerprint() -> str:
-        """Create a deterministic fingerprint of the current catalog."""
-        catalog_dir = PATHS.catalog_questions_dir
-        if not catalog_dir.exists():
-            return ""
-        hasher = hashlib.sha256()
-        for json_file in sorted(catalog_dir.glob("*.json")):
-            hasher.update(json_file.read_bytes())
-        return hasher.hexdigest()
-
-    def is_stale(self) -> bool:
-        current = self.catalog_fingerprint()
-        return current != self._last_fingerprint
 
     def compute(self, force: bool = False) -> dict[str, Any]:
-        if not force and self._snapshot and not self.is_stale():
+        if self._snapshot and not force:
             return self._snapshot
 
-        logger.info("AnalyticsEngine computing snapshot...")
-        # Placeholder - in real implementation this would load questions and compute stats
+        if not self.questions:
+            return self._empty_snapshot()
+
+        logger.info(f"Computing analytics on {len(self.questions)} questions...")
+
+        subject_freq: dict[str, int] = defaultdict(int)
+        topic_freq: dict[str, int] = defaultdict(int)
+        year_freq: dict[str, int] = defaultdict(int)
+        difficulty_freq: dict[str, int] = defaultdict(int)
+
+        topic_by_year: dict[str, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+
+        for q in self.questions:
+            subject = q.get("subject") or q.get("classification", {}).get("primary", {}).get("subject", "Unknown")
+            topic = q.get("topic") or "General"
+            year = int(q.get("year", 0)) or 0
+            difficulty = q.get("difficulty") or "medium"
+
+            subject_freq[subject] += 1
+            topic_freq[topic] += 1
+            if year > 0:
+                year_freq[year] += 1
+                topic_by_year[topic][year] += 1
+            difficulty_freq[difficulty] += 1
+
+        # Priority score = frequency * recency weight
+        priority_rankings = []
+        for topic, count in sorted(topic_freq.items(), key=lambda x: -x[1])[:30]:
+            years = list(topic_by_year[topic].keys())
+            recent_weight = sum(1.5 if y >= 2023 else 1.0 for y in years)
+            score = count * recent_weight / max(len(years), 1)
+            priority_rankings.append(
+                {
+                    "topic": topic,
+                    "frequency": count,
+                    "priority_score": round(score, 2),
+                    "years_appeared": sorted(years, reverse=True),
+                }
+            )
+
         snapshot = {
-            "manifest": {
-                "years": [2023, 2024, 2025],
-                "total_questions": 1250,
-                "classified_questions": 1180,
-                "catalog_fingerprint": self.catalog_fingerprint(),
-            },
-            "topic_frequency": {},
-            "subject_trends": {},
-            "priority_rankings": {},
-            "intelligence_report": {},
+            "total_questions": len(self.questions),
+            "subject_distribution": dict(sorted(subject_freq.items(), key=lambda x: -x[1])),
+            "topic_frequency": dict(sorted(topic_freq.items(), key=lambda x: -x[1])[:25]),
+            "year_distribution": dict(sorted(year_freq.items())),
+            "difficulty_distribution": dict(difficulty_freq),
+            "priority_rankings": priority_rankings,
+            "top_overdue_topics": self._find_overdue_topics(topic_by_year),
         }
+
         self._snapshot = snapshot
-        self._last_fingerprint = snapshot["manifest"]["catalog_fingerprint"]
         return snapshot
 
-    def get_snapshot(self, refresh: bool = False) -> dict[str, Any]:
-        if refresh or self._snapshot is None:
-            return self.compute(force=True)
-        return self._snapshot
+    def _find_overdue_topics(self, topic_by_year: dict) -> list[dict]:
+        overdue = []
+        for topic, years in topic_by_year.items():
+            if not years:
+                continue
+            last_year = max(years.keys())
+            if last_year <= 2022:  # Not appeared recently
+                overdue.append(
+                    {
+                        "topic": topic,
+                        "last_appeared": last_year,
+                        "frequency": sum(years.values()),
+                    }
+                )
+        return sorted(overdue, key=lambda x: -x["frequency"])[:10]
 
-    def load_normalized_questions(self) -> list[dict[str, Any]]:
-        """Load all questions from catalog in normalized format."""
-        # This would normally load from data/catalog/questions/*.json
-        return []
+    def _empty_snapshot(self) -> dict:
+        return {
+            "total_questions": 0,
+            "subject_distribution": {},
+            "topic_frequency": {},
+            "year_distribution": {},
+            "difficulty_distribution": {},
+            "priority_rankings": [],
+            "top_overdue_topics": [],
+        }
+
+    def get_priority_topics(self, limit: int = 15) -> list[dict]:
+        snap = self.compute()
+        return snap.get("priority_rankings", [])[:limit]
