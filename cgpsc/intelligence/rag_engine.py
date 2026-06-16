@@ -45,13 +45,29 @@ class RAGEngine:
 
         for q in questions:
             text = f"{q.get('question', '')} {' '.join(q.get('options', {}).values())}"
+
+            # Extract classification (supports CGPSC Reader format)
+            classification = q.get("classification", {})
+            primary = classification.get("primary", {}) if isinstance(classification, dict) else {}
+
+            subject = q.get("subject") or primary.get("subject") or "General"
+            topic = q.get("topic") or primary.get("topic") or "General"
+
+            # Extract difficulty as simple string (ChromaDB requirement)
+            difficulty_raw = q.get("difficulty")
+            if isinstance(difficulty_raw, dict):
+                difficulty = difficulty_raw.get("label", "medium")
+            else:
+                difficulty = difficulty_raw or "medium"
+
             meta = {
                 "year": q.get("year"),
-                "subject": q.get("subject"),
-                "topic": q.get("topic"),
-                "difficulty": q.get("difficulty"),
+                "subject": str(subject),
+                "topic": str(topic),
+                "difficulty": str(difficulty),
                 "question_no": q.get("question_no"),
             }
+
             documents.append(text)
             metadatas.append({k: v for k, v in meta.items() if v is not None})
             ids.append(str(uuid.uuid4()))
