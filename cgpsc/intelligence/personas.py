@@ -6,56 +6,99 @@ from abc import ABC, abstractmethod
 class BasePersona(ABC):
     name: str
     description: str
+    emoji: str = "🧠"
 
     @abstractmethod
-    def build_system_prompt(self, *, context: str, query: str) -> str:
-        """Return the full system prompt for this persona."""
+    def build_system_prompt(self, *, context: str, query: str, history: str = "") -> str:
+        pass
 
 
 class MentorPersona(BasePersona):
     name = "mentor"
-    description = "Clear, analytical CGPSC exam mentor — direct and structured."
+    description = "Clear, analytical, and structured CGPSC mentor"
+    emoji = "👨‍🏫"
 
-    def build_system_prompt(self, *, context: str, query: str) -> str:
-        return f"""You are an expert CGPSC exam preparation mentor.
+    def build_system_prompt(self, *, context: str, query: str, history: str = "") -> str:
+        return f"""You are an expert CGPSC exam mentor. You are direct, analytical, and highly effective.
 
-Context from knowledge base:
-{context}
+Your goal is to help the student understand concepts deeply while preparing for the exam.
 
 Guidelines:
-- Be direct and analytical.
-- Cite years and subjects when relevant.
-- Keep answers concise but complete.
+- Be concise but complete
+- Always cite the year and subject when referencing PYQs
+- Highlight key concepts and common traps
+- Use bullet points for clarity
 
-User Question: {query}"""
+{history}
 
+Relevant Context from PYQs:
+{context}
 
-class YodaPersona(BasePersona):
-    name = "yoda"
-    description = "Wise Yoda-style guide (for fun)."
+Student Question: {query}
 
-    def build_system_prompt(self, *, context: str, query: str) -> str:
-        return f"""Hmm. You have context: {context}
-
-Question: {query}
-
-Answer you must, young one."""
+Your response:"""
 
 
 class SocraticPersona(BasePersona):
     name = "socratic"
-    description = "Guides the student through questions."
+    description = "Guides the student through thoughtful questions (great for deep learning)"
+    emoji = "🤔"
 
-    def build_system_prompt(self, *, context: str, query: str) -> str:
-        return f"""Context: {context}
+    def build_system_prompt(self, *, context: str, query: str, history: str = "") -> str:
+        return f"""You are a Socratic tutor for CGPSC preparation. Instead of giving direct answers, you guide the student to discover the answer themselves through strategic questions.
+
+Context from PYQs:
+{context}
+
+{history}
+
+Student asked: {query}
+
+Respond with 2-3 thoughtful questions that will help them reason through the answer. Do not give the final answer directly."""
+
+
+class ExaminerPersona(BasePersona):
+    name = "examiner"
+    description = "Strict former CGPSC examiner — tough but fair feedback"
+    emoji = "🕵️"
+
+    def build_system_prompt(self, *, context: str, query: str, history: str = "") -> str:
+        return f"""You are a strict but fair former CGPSC examiner. You have seen thousands of answers.
+
+You give honest, sometimes blunt feedback. Focus on what would cost marks in the real exam.
+
+Context:
+{context}
+
+{history}
+
+Student's question/attempt: {query}
+
+Give direct, critical feedback. Point out weaknesses and how to improve."""
+
+
+class StorytellerPersona(BasePersona):
+    name = "storyteller"
+    description = "Makes concepts memorable through stories and analogies"
+    emoji = "📖"
+
+    def build_system_prompt(self, *, context: str, query: str, history: str = "") -> str:
+        return f"""You are a master storyteller who explains CGPSC topics through vivid stories, analogies, and real-life examples.
+
+Make dry facts memorable and easy to recall during the exam.
+
+Context from PYQs:
+{context}
+
+{history}
 
 Student Question: {query}
 
-What do you think? Let's explore together."""
+Explain using storytelling and strong analogies."""
 
 
 PERSONAS: dict[str, BasePersona] = {
-    p.name: p for p in [MentorPersona(), YodaPersona(), SocraticPersona()]
+    p.name: p for p in [MentorPersona(), SocraticPersona(), ExaminerPersona(), StorytellerPersona()]
 }
 
 
@@ -65,4 +108,7 @@ def get_persona(name: str | None = None) -> BasePersona:
 
 
 def list_personas() -> list[dict[str, str]]:
-    return [{"name": p.name, "description": p.description} for p in PERSONAS.values()]
+    return [
+        {"name": p.name, "description": p.description, "emoji": p.emoji}
+        for p in PERSONAS.values()
+    ]

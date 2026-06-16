@@ -1,39 +1,59 @@
+from __future__ import annotations
+
 import logging
 import requests
-from requests.exceptions import RequestException, Timeout
+
+from requests.exceptions import RequestException
 
 logger = logging.getLogger("cgpsc.ollama")
 
-OLLAMA_REQUEST_TIMEOUT = 120
+OLLAMA_BASE_URL = "http://localhost:11434"
 
 
-def ollama_post(endpoint: str, payload: dict, timeout: int = OLLAMA_REQUEST_TIMEOUT, caller: str = "unknown"):
-    url = f"http://localhost:11434{endpoint}"
+def ensure_model_exists(model_name: str) -> bool:
+    """Check if model exists in Ollama, pull if missing."""
     try:
-        resp = requests.post(url, json=payload, timeout=timeout)
-        resp.raise_for_status()
-        return resp
-    except Timeout as e:
-        logger.error(f"[{caller}] Ollama timeout: {e}")
-        raise
+        resp = requests.post(f"{OLLAMA_BASE_URL}/api/show", json={"name": model_name}, timeout=10)
+        if resp.status_code == 200:
+            return True
+        # Try to pull
+        logger.info(f"Pulling model {model_name}...")
+        requests.post(f"{OLLAMA_BASE_URL}/api/pull", json={"name": model_name}, timeout=300)
+        return True
     except RequestException as e:
-        logger.error(f"[{caller}] Ollama request failed: {e}")
-        raise
+        logger.error(f"Ollama connection failed: {e}")
+        return False
 
 
-def ensure_model_exists(model: str):
-    try:
-        resp = requests.get("http://localhost:11434/api/tags", timeout=10)
-        models = [m["name"] for m in resp.json().get("models", [])]
-        if model not in models:
-            logger.warning(f"Model {model} not found. Pulling...")
-            requests.post("http://localhost:11434/api/pull", json={"name": model}, timeout=300)
-    except Exception as e:
-        logger.warning(f"Could not verify model {model}: {e}")
+def ollama_chat(
+    model: str,
+    messages: list[dict],
+    temperature: float = 0.7,
+    num_predict: int = 512,
+    stream: bool = False,
+):
+    """Make a chat request to Ollama."""
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": stream,
+        "options": {
+            "temperature": temperature,
+            "num_predict": num_predict,
+            "num_ctx": 8192,
+        },
+    }
+    resp = requests.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=120)
+    resp.raise_for_status()
+    return resp
 
 
-class OllamaModelNotFoundError(Exception):
-    def __init__(self, model: str, installed: list):
-        self.model = model
-        self.installed = installed
-        super().__init__(f"Model '{model}' not found in Ollama. Installed: {installed}")
+def ollama_embed(text: str, model: str = "nomic-embed-text") -> list[float]:
+    """Get embedding for a single text."""
+    resp = requests.post(
+        f"{OLLAMA_BASE_URL}/api/embeddings",
+        json={"model": model, "prompt": text},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()["embedding"]
