@@ -5,17 +5,31 @@ logger = logging.getLogger("cgpsc.rag")
 
 
 class CGPSCRAG:
-    def __init__(self, persist_directory=None):
+    def __init__(self, persist_directory: str | None = None):
         self.persist_directory = persist_directory
 
-    def chat(self, query: str, persona: str | None = None, **kwargs):
-        active = get_persona(persona)
-        # Placeholder response
+    def chat(
+        self,
+        query: str,
+        filter_metadata: dict | None = None,
+        k: int = 8,
+        prefer_notes: bool = True,
+        persona: str | None = None,
+    ) -> dict:
+        active_persona = get_persona(persona)
+
+        # Placeholder implementation for open-source version
         return {
-            "answer": f"[{active.name}] This is a placeholder answer for: {query}",
+            "answer": f"[{active_persona.name}] This is a placeholder RAG response for your query: {query}",
             "sources": [],
-            "persona": active.name,
+            "persona": active_persona.name,
         }
 
-    def get_stats(self):
-        return {"total_documents": 0}
+    def get_stats(self) -> dict:
+        return {
+            "total_documents": 0,
+            "collection_name": "cgpsc_intelligence",
+        }
+
+    def clear_collection(self):
+        logger.info("Collection cleared (placeholder)")
